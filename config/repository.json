@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "organization": "vrchat-cyber-cemetery",
+  "repository": "world-data-1",
+  "role": "runtime-shard",
+  "main_repository": "vrchat-cyber-cemetery.github.io",
+  "protocol_version": 1,
+  "layout_version": "cemetery-v1",
+  "site_base": "https://vrchat-cyber-cemetery.github.io/world-data-1",
+  "shard_index": 1,
+  "first_pack": 256,
+  "last_pack": 511,
+  "pack_count": 256,
+  "max_pack_bytes": 2228256,
+  "max_site_bytes": 734003200,
+  "deployment_status": "not_initialized"
+}
