@@ -7,6 +7,11 @@
   "pack_count": 256,
   "max_pack_bytes": 2228256,
   "total_bytes": 53760,
+  "publication": {
+    "publication_id": "PB-000004",
+    "publication_sequence": 4,
+    "source_sha": "c3c852fa1195986dace50040b16cb14dc83fff79"
+  },
   "packs": [
     {
       "pack": 256,
