@@ -13,5 +13,5 @@
   "pack_count": 256,
   "max_pack_bytes": 2228256,
   "max_site_bytes": 734003200,
-  "deployment_status": "not_initialized"
+  "deployment_status": "empty-v1-published"
 }
