@@ -8,9 +8,9 @@
   "max_pack_bytes": 2228256,
   "total_bytes": 53760,
   "publication": {
-    "publication_id": "PB-000004",
-    "publication_sequence": 4,
-    "source_sha": "c3c852fa1195986dace50040b16cb14dc83fff79"
+    "publication_id": "PB-000005",
+    "publication_sequence": 5,
+    "source_sha": "84c13046a17e3b72a63ac3cfd7692c91487d7307"
   },
   "packs": [
     {
