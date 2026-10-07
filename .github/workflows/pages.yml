@@ -3,26 +3,79 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  repository_dispatch:
+    types: [publish-shard]
 permissions:
   contents: read
 concurrency:
   group: shard-publication
   cancel-in-progress: false
 jobs:
-  check:
-    name: Verify packs against manifest
+  publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    outputs:
+      dispatched: ${{ steps.guard.outputs.dispatched }}
+      skipped: ${{ steps.guard.outputs.skipped }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: main
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
+      - id: guard
+        name: Guard dispatched publications against out-of-order deployment
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          echo "dispatched=true" >> "$GITHUB_OUTPUT"
+          CURRENT=$(jq -r '.publication.publication_sequence // 0' public/manifest.json)
+          INCOMING=${{ github.event.client_payload.sequence }}
+          if [ "$INCOMING" -le "$CURRENT" ]; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "Incoming publication $INCOMING is not newer than deployed $CURRENT; refusing to overwrite."
+            exit 0
+          fi
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
+      - name: Verify and unpack the approved archive
+        if: github.event_name == 'repository_dispatch' && steps.guard.outputs.skipped != 'true'
+        run: |
+          PAYLOAD='${{ toJSON(github.event.client_payload) }}'
+          ID=$(jq -r .publication_id <<< "$PAYLOAD")
+          SEQUENCE=$(jq -r .sequence <<< "$PAYLOAD")
+          SHA=$(jq -r .source_sha <<< "$PAYLOAD")
+          TAG=$(jq -r .release_tag <<< "$PAYLOAD")
+          HASH=$(jq -r .archive_sha256 <<< "$PAYLOAD")
+          RECORD=$(curl -fsSL "https://raw.githubusercontent.com/vrchat-cyber-cemetery/vrchat-cyber-cemetery.github.io/main/data/publications/$ID.json")
+          [ "$(jq -r .publication_sequence <<< "$RECORD")" = "$SEQUENCE" ] || { echo "sequence mismatch"; exit 1; }
+          [ "$(jq -r .source_sha <<< "$RECORD")" = "$SHA" ] || { echo "source mismatch"; exit 1; }
+          EXPECTED=$(jq -r --arg repo "vrchat-cyber-cemetery/${REPO_NAME}" '.archives[] | select(.repository==$repo) | .sha256' <<< "$RECORD")
+          [ "$EXPECTED" = "$HASH" ] || { echo "dispatch hash does not match the registered record"; exit 1; }
+          curl -fsSL "https://github.com/vrchat-cyber-cemetery/vrchat-cyber-cemetery.github.io/releases/download/$TAG/$REPO_NAME.zip" -o archive.zip
+          echo "$HASH  archive.zip" | sha256sum -c -
+          rm -rf public/packs
+          unzip -q archive.zip -d unpacked
+          mv unpacked/packs public/packs
+          mv unpacked/manifest.json public/manifest.json
+          rm -rf unpacked archive.zip
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
       - run: npm run check
+      - name: Commit the deployed packs
+        if: github.event_name == 'repository_dispatch' && steps.guard.outputs.skipped != 'true'
+        run: |
+          git config user.name "vrchat-cyber-cemetery-ci"
+          git config user.email "noreply@vrchat-cyber-cemetery.github.io"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git add public
+          git commit -m "Deploy approved runtime publication" || echo "nothing to commit"
+          git push origin HEAD:main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   deploy:
-    needs: check
+    needs: publish
+    if: needs.publish.outputs.skipped != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,6 +87,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: main
           persist-credentials: false
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
